@@ -1,4 +1,4 @@
-# computernetworks
+# Computernetworks
 A lab series in the course TDTS06 - Computer Networks at Univerity of Linköping. 
 
 ## Content
