@@ -4,8 +4,9 @@
 import socket
 
 class Server:
-    def init_socket():
-        sock = socket.socket()
+    # Initialize a TCP socket. 
+    def init_socket(int port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = socket.gethostname()
         sock.bind((host, port))
 
