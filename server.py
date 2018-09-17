@@ -3,17 +3,18 @@
 
 import socket
 
-s = socket.socket()
-host = socket.gethostname()
-port = 9999
+class Server:
+    def init_socket():
+        sock = socket.socket()
+        host = socket.gethostname()
+        sock.bind((host, port))
 
-s.bind((host,port))
+    def recieve_all():
+        data = null
+        while data:
 
-print "Waiting for connection..."
-s.listen(5)
+    def close_connection():
+        conn.close()
 
-while True:
-    conn,addr = s.accept()
-    print 'Got connection from ', addr
-    conn.send('Server saying Hi')
-    conn.close()
+    def open_connection():
+        conn, addr = sock.accept()
