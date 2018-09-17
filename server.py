@@ -1,5 +1,5 @@
 #!/usr/bin/python
-#TSCP_server script
+#TCP_server script
 
 import socket
 
