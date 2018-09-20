@@ -2,7 +2,7 @@
 #Proxy handler
 
 from server import Server
-from thread import start_new_thread
+from threading import Thread
 import sys, socket
 
 MAX_CONNECTIONS = 10 #Max buffer in connection
@@ -13,7 +13,7 @@ try:
     listen_port = 8001
     #int(raw_input("Enter port number: ")) #User input for chosing port
 except KeyboardInterrupt:
-    print "\nShutting down..."
+    print("\nShutting down...")
     sys.exit()
 
 def start():
@@ -22,10 +22,10 @@ def start():
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM) #Init socket as TCP
         s.bind(HOST) #Bind port to listen at
         s.listen(MAX_CONNECTIONS) #Start listen 
-        print "Server listening at " + str(HOST)
-    except Exception, e:
-        print "Failed to start before setup:"
-        print e.message
+        print("Server listening at " + str(HOST))
+    except Exception as e:
+        print("Failed to start before setup:")
+        print(e)
         sys.exit(1)
 
     #***************** Waiting for client req. *******************#
@@ -33,30 +33,34 @@ def start():
         try:
             conn_client, addr = s.accept() #Accept connection from workstation
             data = conn_client.recv(BUFFER_SIZE) # Recieve data from user
-            start_new_thread(conn_thread, (conn_client, data, addr)) #Start new thread to handle request from user
+            t1 = Thread(target=conn_thread, args=[conn_client, data, addr])
+            t1.start()
+            t1.join()
+            #start_new_thread(conn_thread, (conn_client, data, addr)) #Start new thread to handle request from user
         except KeyboardInterrupt:
             conn_client.close()
             s.close()
-            print "Closing proxy while trying to accept..."
+            print("Closing proxy while trying to accept...")
             sys.exit(1)
     s.close()
 
 def conn_thread(conn_client, data, addr):
     try:
-        print str(data)
+        print("\n" + "DATA: " + str(data) + "\n")
         webserver = get_url_from_req(data)
-        print webserver
+        print("WEBSERVER: " + webserver + "\n")
 
         proxy_server(webserver, 80, conn_client, addr, data)
-    except Exception, e:
-        print "Something went wrong when reading:\n"
-        print e.message
+    except Exception as e:
+        print("Something went wrong when reading:\n")
+        print(e)
         sys.exit()
 
 def proxy_server(webserver, port, conn_client, addr, data):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((webserver, port))
+        print("PROXY CONNECTED TO WEBSERVER, SENDING DATA...\n")
         s.send(data)
 
         #Look for answer from webserver
@@ -68,18 +72,18 @@ def proxy_server(webserver, port, conn_client, addr, data):
                 break
         s.close() # Close server socket
         conn_client.close() #Close client socket, no more data
-    except socket.error, (value, message):
-        print "Socket exited when trying to send:"
-        print message
-        print value
+    except socket.error as message:
+        print("Socket exited when trying to send:")
+        print(message)
+        #print(value)
         s.close()
         conn_client.close()
         sys.exit(1)
     sys.exit(0)
 
 def get_url_from_req(data):
-    second_line = data.split('\n')[1]
-    url = second_line.split(' ')[1]
+    second_line = str(data.splitlines()[1], "utf-8")
+    url = second_line.split(" ")[1]
     return url
 
 start()
