@@ -46,6 +46,9 @@ def start():
     s.close()
 
 def conn_thread(conn_client, data, addr):
+    if has_bad_content(str(data, "UTF-8")):
+        sys.exit()
+
     try:
         print("\n" + "DATA: " + str(data) + "\n")
         webserver = get_url_from_req(data)
