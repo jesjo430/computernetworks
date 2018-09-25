@@ -88,4 +88,10 @@ def get_url_from_req(data):
     url = second_line.split(" ")[1]
     return url
 
+def has_bad_content(content):
+    for bad_word in BAD_CONTENT:
+        if bad_word in content:
+            return True
+    return False
+
 start()
