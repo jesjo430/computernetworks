@@ -8,6 +8,8 @@ import sys, socket
 MAX_CONNECTIONS = 10 #Max buffer in connection
 BUFFER_SIZE = 2048 #Amount of data to handle in chunks
 HOST = ('127.0.0.1',8001) #Temp 
+BAD_CONTENT_REDIR_PAGE = "http://zebroid.ida.liu.se/error1.html"
+BAD_CONTENT = {"SpongeBob", "Britney Spears", "Paris Hilton", "Norrk?ping"}
 
 try:
     listen_port = 8001
@@ -36,7 +38,6 @@ def start():
             t1 = Thread(target=conn_thread, args=[conn_client, data, addr])
             t1.start()
             t1.join()
-            #start_new_thread(conn_thread, (conn_client, data, addr)) #Start new thread to handle request from user
         except KeyboardInterrupt:
             conn_client.close()
             s.close()
@@ -72,6 +73,7 @@ def proxy_server(webserver, port, conn_client, addr, data):
                 break
         s.close() # Close server socket
         conn_client.close() #Close client socket, no more data
+        print("Done")
     except socket.error as message:
         print("Socket exited when trying to send:")
         print(message)
