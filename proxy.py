@@ -1,15 +1,16 @@
 #!/usr/bin/python
 #Proxy handler
 
-from server import Server
 from threading import Thread
 import sys, socket
 
 MAX_CONNECTIONS = 10 #Max buffer in connection
 BUFFER_SIZE = 2048 #Amount of data to handle in chunks
 HOST = ('127.0.0.1',8001) #Temp 
-BAD_CONTENT_REDIR_PAGE = "http://zebroid.ida.liu.se/error1.html"
-BAD_CONTENT = {"SpongeBob", "Britney Spears", "Paris Hilton", "Norrk?ping"}
+BAD_URL_REDIR_PAGE = "http://zebroid.ida.liu.se/error1.html"
+BAD_CONTENT_REDIR_PAGE = "http://zebroid.ida.liu.se/error2.html"
+BAD_CONTENT_HOST = "http://zebroid.ida.liu.se"
+BAD_CONTENT = {b'SpongeBob', b'Britney Spears', b'Paris Hilton', b'Norrk?ping'}
 
 try:
     listen_port = 8001
@@ -46,7 +47,7 @@ def start():
     s.close()
 
 def conn_thread(conn_client, data, addr):
-    if has_bad_content(str(data, "UTF-8")):
+    if has_bad_content(data):
         sys.exit()
 
     try:
@@ -71,7 +72,12 @@ def proxy_server(webserver, port, conn_client, addr, data):
         while 1:
             answer = s.recv(BUFFER_SIZE)
             if (len(answer)>0): #If any
+                print(answer + b'\n')
+                if (is_text(answer) and has_bad_content(answer)):
+                    answer = filter_content(s, webserver, data)
+
                 conn_client.send(answer) #send it to user
+                print("Content accepted")
             else: # No return message (left)
                 break
         s.close() # Close server socket
@@ -91,10 +97,36 @@ def get_url_from_req(data):
     url = second_line.split(" ")[1]
     return url
 
+def get_request(data):
+    request = data.split(b'GET ')[1]
+    request = request.split(b' ')[0]
+    return request
+
 def has_bad_content(content):
     for bad_word in BAD_CONTENT:
-        if bad_word in content:
+        if bad_word.lower() in content.lower():
+            print("Bad content found! \n")
             return True
     return False
+
+def type_of_content(content):
+    content = content.split(b'Content-Type:')[1]
+    content_type = content.split(b'\r')[0]
+    print(content_type + b'\n')
+    return content_type
+
+def is_text(answer):
+    if (b'Content-Type' in answer):
+        if (b'text' in type_of_content(answer)):
+            return True
+    return False
+
+def filter_content(s, webserver, data):            
+    data = data.replace(webserver.encode("utf-8"), BAD_CONTENT_HOST.encode("utf-8"))
+    data = data.replace(get_request(data), BAD_CONTENT_REDIR_PAGE.encode("utf-8"))
+    print("This is the new data: " + str(data) + "\n")
+    s.send(data)
+    answer = s.recv(BUFFER_SIZE)
+    return answer
 
 start()
