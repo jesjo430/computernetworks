@@ -52,7 +52,7 @@ def conn_thread(conn_client, data, addr):
 
     try:
         print("\n" + "DATA: " + str(data) + "\n")
-        webserver = get_url_from_req(data)
+        webserver = get_host(data)
         print("WEBSERVER: " + webserver + "\n")
 
         proxy_server(webserver, 80, conn_client, addr, data)
@@ -92,12 +92,12 @@ def proxy_server(webserver, port, conn_client, addr, data):
         sys.exit(1)
     sys.exit(0)
 
-def get_url_from_req(data):
+def get_host(data):
     second_line = str(data.splitlines()[1], "utf-8")
     url = second_line.split(" ")[1]
     return url
 
-def get_request(data):
+def get_url(data):
     request = data.split(b'GET ')[1]
     request = request.split(b' ')[0]
     return request
@@ -123,7 +123,7 @@ def is_text(answer):
 
 def filter_content(s, webserver, data):            
     data = data.replace(webserver.encode("utf-8"), BAD_CONTENT_HOST.encode("utf-8"))
-    data = data.replace(get_request(data), BAD_CONTENT_REDIR_PAGE.encode("utf-8"))
+    data = data.replace(get_url(data), BAD_CONTENT_REDIR_PAGE.encode("utf-8"))
     print("This is the new data: " + str(data) + "\n")
     s.send(data)
     answer = s.recv(BUFFER_SIZE)
