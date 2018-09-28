@@ -9,7 +9,7 @@ BUFFER_SIZE = 2048 #Amount of data to handle in chunks
 HOST = ('127.0.0.1',8001) #Temp 
 BAD_URL_REDIR_PAGE = "http://zebroid.ida.liu.se/error1.html"
 BAD_CONTENT_REDIR_PAGE = "http://zebroid.ida.liu.se/error2.html"
-BAD_CONTENT_HOST = "http://zebroid.ida.liu.se"
+BAD_CONTENT_HOST = "zebroid.ida.liu.se"
 BAD_CONTENT = {b'SpongeBob', b'Britney Spears', b'Paris Hilton', b'Norrk?ping'}
 
 try:
@@ -47,12 +47,12 @@ def start():
     s.close()
 
 def conn_thread(conn_client, data, addr):
+    print("\n" + "DATA: \n" + str(data) + "\n")
     if has_bad_content(data):
-        sys.exit()
+        data = filter_url(data)
 
     try:
-        print("\n" + "DATA: " + str(data) + "\n")
-        webserver = get_host(data)
+        webserver = str(get_host(data), "utf-8")
         print("WEBSERVER: " + webserver + "\n")
 
         proxy_server(webserver, 80, conn_client, addr, data)
@@ -64,22 +64,25 @@ def conn_thread(conn_client, data, addr):
 def proxy_server(webserver, port, conn_client, addr, data):
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(1)
         s.connect((webserver, port))
         print("PROXY CONNECTED TO WEBSERVER, SENDING DATA...\n")
         s.send(data)
 
         #Look for answer from webserver
         while 1:
-            answer = s.recv(BUFFER_SIZE)
-            if (len(answer)>0): #If any
-                print(answer + b'\n')
-                if (is_text(answer) and has_bad_content(answer)):
-                    answer = filter_content(s, webserver, data)
+            try:    
+                answer = s.recv(BUFFER_SIZE)
+                if (len(answer)>0): #If any
+                    print(answer + b'\n')
+                    if (is_text(answer) and has_bad_content(answer)):
+                        answer = filter_content(s, webserver, data)
 
-                conn_client.send(answer) #send it to user
-                print("Content accepted")
-            else: # No return message (left)
-                break
+                    conn_client.send(answer) #send it to user
+                    print("Content accepted")
+            except socket.timeout as message:
+                print("End of recv \n")
+                break            
         s.close() # Close server socket
         conn_client.close() #Close client socket, no more data
         print("Done")
@@ -93,12 +96,12 @@ def proxy_server(webserver, port, conn_client, addr, data):
     sys.exit(0)
 
 def get_host(data):
-    second_line = str(data.splitlines()[1], "utf-8")
-    url = second_line.split(" ")[1]
+    second_line = data.splitlines()[1]
+    url = second_line.split(b' ')[1]
     return url
 
 def get_url(data):
-    request = data.split(b'GET ')[1]
+    request = data.split(b' ')[1]
     request = request.split(b' ')[0]
     return request
 
@@ -124,9 +127,15 @@ def is_text(answer):
 def filter_content(s, webserver, data):            
     data = data.replace(webserver.encode("utf-8"), BAD_CONTENT_HOST.encode("utf-8"))
     data = data.replace(get_url(data), BAD_CONTENT_REDIR_PAGE.encode("utf-8"))
-    print("This is the new data: " + str(data) + "\n")
+    print("This is the new data: \n" + str(data) + "\n")
     s.send(data)
     answer = s.recv(BUFFER_SIZE)
     return answer
+
+def filter_url(data):            
+    data = data.replace(get_host(data), BAD_CONTENT_HOST.encode("utf-8"))
+    data = data.replace(get_url(data), BAD_URL_REDIR_PAGE.encode("utf-8"))
+    print("This is the new data: \n" + str(data) + "\n")
+    return data
 
 start()
