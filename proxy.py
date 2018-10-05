@@ -3,6 +3,9 @@
 
 from threading import Thread
 import sys, socket
+import gzip
+import binascii
+
 
 MAX_CONNECTIONS = 10 #Max buffer in connection
 BUFFER_SIZE = 2048 #Amount of data to handle in chunks
@@ -80,7 +83,7 @@ def proxy_server(webserver, port, connect_client, addr, data):
                 answer = s.recv(BUFFER_SIZE)
                 if (len(answer)>0): #If any
                     print(answer + b'\n')
-                    if (is_text(answer) and has_bad_content(answer)):
+                    if (is_text(answer) and not is_gzip(answer) and has_bad_content(answer)):
                         answer = filter_content(s, webserver, data)
 
                     connect_client.send(answer) #send it to workstation
@@ -120,11 +123,33 @@ def get_url(data):
 # Controlls if content contains any of the "bad" words that should be filtered out.
 # Takes a bytes object and returns a boolean.
 def has_bad_content(content):
+    if is_gzip:
+        print("")
+        #content = gzip.decompress(remove_header(content))
     for bad_word in BAD_CONTENT:
         if bad_word.lower() in content.lower():
             print("Bad content found! \n")
             return True
     return False
+
+def remove_header(request):
+    return request.split(b'\r\n\r\n')[1]                        
+
+# Takes bytes object as input and returns bool.
+# True if contains "Content-Encoding" field contains "gzip". 
+def is_gzip(content):
+    if (b'Content-Encoding' in content):
+        if (b'gzip' in type_of_encoding(content)):
+            return True
+    return False
+
+# Checks what encoding the content contains.
+# Takes a bytes object and returns a bytes object.
+def type_of_encoding(content):
+    content = content.split(b'Content-Encoding:')[1]
+    encoding_type = content.split(b'\r')[0]
+    print(encoding_type + b'\n')
+    return encoding_type
 
 # Checks what content-type the content contains.
 # Takes a bytes object and returns a bytes object.
