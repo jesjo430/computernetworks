@@ -4,8 +4,6 @@
 from threading import Thread
 import sys, socket
 import gzip
-import binascii
-
 
 MAX_CONNECTIONS = 10 #Max buffer in connection
 BUFFER_SIZE = 2048 #Amount of data to handle in chunks
@@ -71,9 +69,7 @@ def connect_thread(connect_client, data, addr):
 # Also sends the data back to the workstation.
 def proxy_server(webserver, port, connect_client, addr, data):
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(1)
-        s.connect((webserver, port))
+        s = create_and_connect_socket(webserver, port)
         print("PROXY CONNECTED TO WEBSERVER, SENDING DATA...\n")
         data = set_accept_encoding(b'identity', data)                    
         s.send(data)
@@ -84,18 +80,24 @@ def proxy_server(webserver, port, connect_client, addr, data):
             try:    
                 latest_answer = s.recv(BUFFER_SIZE)
                 buffered_answer += latest_answer
-
+                if (latest_answer == b''):
+                    break
             except socket.timeout as message:
                 print("End of recv \n")
                 if (is_text(buffered_answer) and has_bad_content(buffered_answer)):
-                    #data = remove_unneccessary_info(data)   
-                    #data = set_accept_encoding(b'gzip, deflate', data)
-                    buffered_answer = filter_content(s, webserver, data) 
+                    # If the old response contained bad content we need to close the old socket connected
+                    # to the old host(webserver) and open a new one with the BAD_CONTENT_HOST.
+                    # We then filter the data, send it to the server and get a new response.
+                    s.close()
+                    s = create_and_connect_socket(BAD_CONTENT_HOST.encode("utf-8"), port)
+                    data = filter_content(webserver, data)
+                    s.send(data)
+                    buffered_answer = s.recv(BUFFER_SIZE)
                 print("Send to workstation: " + str(buffered_answer) + "\n")    
-                connect_client.send(buffered_answer) #send it to workstation
+                connect_client.send(buffered_answer) # Send it to workstation
                 break
         s.close() # Close server socket
-        connect_client.close() #Close client socket, no more data
+        connect_client.close() # Close client socket, no more data
         print("Done")
     except socket.error as message:
         print("Socket exited when trying to send:")
@@ -126,11 +128,7 @@ def has_bad_content(content):
         if bad_word.lower() in content.lower():
             print("Bad content found! \n")
             return True
-    return False
-
-# Removes the header from the request. Returns the remaining content which is a bytes object.
-def remove_header(request):
-    return request.split(b'\r\n\r\n')[1]                        
+    return False                       
 
 # Checks what content-type the content contains.
 # Takes a bytes object and returns a bytes object.
@@ -149,13 +147,11 @@ def is_text(answer):
 # Takes tcp socket, host bytes object webserver and http request byte object data.
 # Changes HTTP request data host name and url to BAD_CONTENT_HOST/URL.
 # Returns modified http request bytes object.
-def filter_content(s, webserver, data):            
+def filter_content(webserver, data):            
     data = data.replace(webserver.encode("utf-8"), BAD_CONTENT_HOST.encode("utf-8"))
     data = data.replace(get_url(data), BAD_CONTENT_REDIR_PAGE.encode("utf-8"))
     print("This is the new data: \n" + str(data) + "\n")
-    s.send(data)
-    answer = s.recv(BUFFER_SIZE)
-    return answer
+    return data
 
 # Takes a encoding type and data as bytes object. Returns a new bytes object with the value of the 
 # field "Accept-Encoding" changed to enc_type. 
@@ -164,19 +160,20 @@ def set_accept_encoding(enc_type, data):
     temp = temp.split(b'\r\n')[0]
     return data.replace(b'Accept-Encoding:' + temp, b'Accept-Encoding: ' + enc_type)
 
-# Takes data, a http request bytes object and changes host and url to BAD_CONTENT_URL/HOST and returns new http request bytes object. 
+# Takes data, a http request bytes object and changes host and url to BAD_CONTENT_URL/HOST.
+# Returns a new http request bytes object. 
 def filter_url(data):            
     data = data.replace(get_host(data), BAD_CONTENT_HOST.encode("utf-8"))
     data = data.replace(get_url(data), BAD_URL_REDIR_PAGE.encode("utf-8"))
     print("This is the new data: \n" + str(data) + "\n")
     return data
 
-def remove_unneccessary_info(data):
-    temp1 = data.split(b'Cookie:')[0]
-    temp2 = data.split(b'identity\r\n')[1]
-    temp2 = temp2.split(b'DNT:')[1]
-    temp2 = temp2.split(b'Cache-Control:')[0]
-    data = temp1 + b'DNT:' + temp2
-    return data
+# Creates a socket with 1 second timeout and connects it to the host from input.
+# Returns the socket object.
+def create_and_connect_socket(webserver, port):
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(1)
+    s.connect((webserver, port))
+    return s
 
 start()
