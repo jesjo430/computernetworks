@@ -51,7 +51,7 @@ def start():
             sys.exit(1)
     s.close()
 
-# The new thread runs.
+# The new thread for handling current connection to given addr. 
 def connect_thread(connect_client, data, addr):
     print("\n" + "DATA: \n" + str(data) + "\n")
     if has_bad_content(data):
@@ -75,32 +75,31 @@ def proxy_server(webserver, port, connect_client, addr, data):
         s.settimeout(1)
         s.connect((webserver, port))
         print("PROXY CONNECTED TO WEBSERVER, SENDING DATA...\n")
+        data = set_accept_encoding(b'identity', data)                    
         s.send(data)
+        buffered_answer = b''
 
         #Look for answer from webserver and send back to workstation if any
         while 1:
             try:    
-                answer = s.recv(BUFFER_SIZE)
-                if (len(answer)>0): #If any
-                    print(answer + b'\n')
-                    if (is_text(answer) and not is_gzip(answer) and has_bad_content(answer)):
-                        answer = filter_content(s, webserver, data)
+                latest_answer = s.recv(BUFFER_SIZE)
+                buffered_answer += latest_answer
 
-                    connect_client.send(answer) #send it to workstation
-                    print("Content accepted")
-                else:
-                    print("Breaking \n")
-                    break
             except socket.timeout as message:
                 print("End of recv \n")
-                break            
+                if (is_text(buffered_answer) and has_bad_content(buffered_answer)):
+                    #data = remove_unneccessary_info(data)   
+                    #data = set_accept_encoding(b'gzip, deflate', data)
+                    buffered_answer = filter_content(s, webserver, data) 
+                print("Send to workstation: " + str(buffered_answer) + "\n")    
+                connect_client.send(buffered_answer) #send it to workstation
+                break
         s.close() # Close server socket
         connect_client.close() #Close client socket, no more data
         print("Done")
     except socket.error as message:
         print("Socket exited when trying to send:")
         print(message)
-        #print(value)
         s.close()
         connect_client.close()
         sys.exit(1)
@@ -123,40 +122,21 @@ def get_url(data):
 # Controlls if content contains any of the "bad" words that should be filtered out.
 # Takes a bytes object and returns a boolean.
 def has_bad_content(content):
-    if is_gzip:
-        print("")
-        #content = gzip.decompress(remove_header(content))
     for bad_word in BAD_CONTENT:
         if bad_word.lower() in content.lower():
             print("Bad content found! \n")
             return True
     return False
 
+# Removes the header from the request. Returns the remaining content which is a bytes object.
 def remove_header(request):
     return request.split(b'\r\n\r\n')[1]                        
-
-# Takes bytes object as input and returns bool.
-# True if contains "Content-Encoding" field contains "gzip". 
-def is_gzip(content):
-    if (b'Content-Encoding' in content):
-        if (b'gzip' in type_of_encoding(content)):
-            return True
-    return False
-
-# Checks what encoding the content contains.
-# Takes a bytes object and returns a bytes object.
-def type_of_encoding(content):
-    content = content.split(b'Content-Encoding:')[1]
-    encoding_type = content.split(b'\r')[0]
-    print(encoding_type + b'\n')
-    return encoding_type
 
 # Checks what content-type the content contains.
 # Takes a bytes object and returns a bytes object.
 def type_of_content(content):
     content = content.split(b'Content-Type:')[1]
     content_type = content.split(b'\r')[0]
-    print(content_type + b'\n')
     return content_type
 
 #Takes bytes object as input and and returns bool if contains "Content-Type" field containing "text". 
@@ -177,11 +157,26 @@ def filter_content(s, webserver, data):
     answer = s.recv(BUFFER_SIZE)
     return answer
 
+# Takes a encoding type and data as bytes object. Returns a new bytes object with the value of the 
+# field "Accept-Encoding" changed to enc_type. 
+def set_accept_encoding(enc_type, data):
+    temp = data.split(b'Accept-Encoding:')[1]
+    temp = temp.split(b'\r\n')[0]
+    return data.replace(b'Accept-Encoding:' + temp, b'Accept-Encoding: ' + enc_type)
+
 # Takes data, a http request bytes object and changes host and url to BAD_CONTENT_URL/HOST and returns new http request bytes object. 
 def filter_url(data):            
     data = data.replace(get_host(data), BAD_CONTENT_HOST.encode("utf-8"))
     data = data.replace(get_url(data), BAD_URL_REDIR_PAGE.encode("utf-8"))
     print("This is the new data: \n" + str(data) + "\n")
+    return data
+
+def remove_unneccessary_info(data):
+    temp1 = data.split(b'Cookie:')[0]
+    temp2 = data.split(b'identity\r\n')[1]
+    temp2 = temp2.split(b'DNT:')[1]
+    temp2 = temp2.split(b'Cache-Control:')[0]
+    data = temp1 + b'DNT:' + temp2
     return data
 
 start()
