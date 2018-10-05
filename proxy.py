@@ -10,7 +10,7 @@ BUFFER_SIZE = 2048 #Amount of data to handle in chunks
 BAD_URL_REDIR_PAGE = "http://zebroid.ida.liu.se/error1.html"
 BAD_CONTENT_REDIR_PAGE = "http://zebroid.ida.liu.se/error2.html"
 BAD_CONTENT_HOST = "zebroid.ida.liu.se"
-BAD_CONTENT = {"SpongeBob", "Britney Spears", "Paris Hilton", "Norrköping"}
+BAD_CONTENT = {b'SpongeBob', b'Britney Spears', b'Paris Hilton', b'Norrkoping'}
 
 try:
     listen_port = int(input("Enter port number: ")) #User input for chosing port
@@ -121,7 +121,6 @@ def get_url(data):
 # Takes a bytes object and returns a boolean.
 def has_bad_content(content):
     for bad_word in BAD_CONTENT:
-        bad_word = bytes(bad_word)
         if bad_word.lower() in content.lower():
             print("Bad content found! \n")
             return True
