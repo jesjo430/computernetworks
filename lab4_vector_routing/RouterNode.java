@@ -1,4 +1,6 @@
-import javax.swing.*;        
+import javax.swing.*;
+
+import static java.lang.Integer.min;
 
 public class RouterNode {
   private int myID;
@@ -13,12 +15,21 @@ public class RouterNode {
     myGUI =new GuiTextArea("  Output window for Router #"+ ID + "  ");
 
     System.arraycopy(costs, 0, this.costs, 0, RouterSimulator.NUM_NODES);
-
+    for (int i = 0; i < costs.length; i++){
+      if (ID != i){
+        costs[i] = RouterSimulator.INFINITY;
+      }
+      else{
+        costs[i] = 0;
+      }
+    }
   }
 
   //--------------------------------------------------
   public void recvUpdate(RouterPacket pkt) {
-
+    for (int i = 0; i < costs.length; i++){
+        costs[i] = min(pkt.mincost[i] + costs[pkt.sourceid], costs[i]);
+    }
   }
   
 
