@@ -1,16 +1,17 @@
 import javax.swing.*;
 import java.util.ArrayList;
 import java.util.List;
-
 public class RouterNode {
   private int myID;
   private GuiTextArea myGUI;
   private RouterSimulator sim;
   private int[] costs = new int[RouterSimulator.NUM_NODES];
+  private int[] shortestPath = new int[RouterSimulator.NUM_NODES];
   private int[][] distanceTable;
   private List<Integer> neighbourID = new ArrayList<Integer>();
   private int[] route = new int[RouterSimulator.NUM_NODES];
   private int[] nodeToDistanceTableEncoding = new int[RouterSimulator.NUM_NODES];
+  private boolean usePoisonReverse = true;
 
   //--------------------------------------------------
   public RouterNode(int ID, RouterSimulator sim, int[] costs) {
@@ -19,8 +20,10 @@ public class RouterNode {
     myGUI = new GuiTextArea("  Output window for Router #"+ ID + "  ");
 
     System.arraycopy(costs, 0, this.costs, 0, RouterSimulator.NUM_NODES);
+    System.arraycopy(costs, 0, shortestPath, 0, RouterSimulator.NUM_NODES);
 
-    for (int i = 0; i < costs.length; i++){
+    for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
+      route[i] = RouterSimulator.INFINITY;
       if ((costs[i] != RouterSimulator.INFINITY) && (costs[i] != 0)){
         neighbourID.add(i);
         route[i] = i;
@@ -42,25 +45,37 @@ public class RouterNode {
   }
 
   //--------------------------------------------------
-  // The boolean is always true because the comparison never match. That is why infinite runtime happens.
   public void recvUpdate(RouterPacket pkt) {
+    int tempShortest = RouterSimulator.INFINITY;
+    int tempRoute = RouterSimulator.INFINITY;
     boolean hasChanged = false;
+
     for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
-      if (distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] != pkt.mincost[i]){
-        distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] = pkt.mincost[i];
-        hasChanged = true;
-        System.out.println(distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] + "\n");
-      }
-      else{
-        System.out.println("Not Changed! \n");
-      }
+      distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] = pkt.mincost[i];
     }
-    for (int i = 0; i < costs.length; i++){
-        if (pkt.mincost[i] + costs[pkt.sourceid] < costs[i]){
-          costs[i] = pkt.mincost[i] + costs[pkt.sourceid];
-          route[i] = pkt.sourceid;
+
+    for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
+      for (int v = 0; v < neighbourID.size(); v++){
+        if (distanceTable[v][i] + costs[neighbourID.get(v)] < tempShortest){
+          tempShortest = distanceTable[v][i] + costs[neighbourID.get(v)];
+          tempRoute = neighbourID.get(v);
         }
+      }
+      if (tempShortest < costs[i]){
+        if (tempShortest != shortestPath[i]){
+          shortestPath[i] = tempShortest;
+          route[i] = tempRoute;
+          hasChanged = true;
+        }
+      }
+      else if (shortestPath[i] != costs[i]){
+        shortestPath[i] = costs[i];
+        route[i] = i;
+        hasChanged = true;
+      }
+      tempShortest = RouterSimulator.INFINITY;
     }
+
     if (hasChanged){
       sendPacketToNeighbours(myID);
     }
@@ -77,19 +92,19 @@ public class RouterNode {
     myGUI.println("Current state for " + myID +
             "  at time " + sim.getClocktime());
 
-    String destinationString = "    dst |    ";
+    String destinationString = "    dst  |    ";
     String costString = " cost   |    ";
     String routeString = " route |    ";
 
     for (int i = 0; i < RouterSimulator.NUM_NODES; i++) {
       destinationString += i + "       ";
-      costString += costs[i] + "       ";
+      costString += shortestPath[i] + "       ";
       routeString += route[i] + "       ";
     }
 
     myGUI.println("\nDistancetable:");
     myGUI.println(F.format(destinationString, destinationString.length()));
-    myGUI.println("------------------------------");
+    myGUI.println("----------------------------------------");
 
     String tableRow;
     for (int i = 0; i < neighbourID.size(); i++) {
@@ -101,19 +116,36 @@ public class RouterNode {
     }
     myGUI.println("\nOur distance vector and route");
     myGUI.println(F.format(destinationString, destinationString.length()));
-    myGUI.println("------------------------------");
+    myGUI.println("-----------------------------------------");
     myGUI.println(F.format(costString, costString.length()));
     myGUI.println(F.format(routeString, routeString.length()));
+
+    myGUI.println("");
+    myGUI.println("");
+    myGUI.println("");
+    myGUI.println("");
   }
 
   //--------------------------------------------------
   public void updateLinkCost(int dest, int newcost) {
+    costs[dest] = newcost;
+    sendPacketToNeighbours(myID);
   }
 
   private void sendPacketToNeighbours(int ID){
     for (int i = 0; i < neighbourID.size(); i++){
-      RouterPacket pkt = new RouterPacket(ID, neighbourID.get(i), costs);
+      int[] poisonShortestPath = new int[RouterSimulator.NUM_NODES];
+      for (int d = 0; d < RouterSimulator.NUM_NODES; d++){
+        if (route[d] == neighbourID.get(i) && usePoisonReverse){
+          poisonShortestPath[d] = RouterSimulator.INFINITY;
+        }
+        else{
+          poisonShortestPath[d] = shortestPath[d];
+        }
+      }
+      RouterPacket pkt = new RouterPacket(ID, neighbourID.get(i), poisonShortestPath);
       sendUpdate(pkt);
     }
   }
 }
+
