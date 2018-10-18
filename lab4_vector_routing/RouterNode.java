@@ -23,13 +23,12 @@ public class RouterNode {
     System.arraycopy(costs, 0, shortestPath, 0, RouterSimulator.NUM_NODES);
 
     for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
-      route[i] = RouterSimulator.INFINITY;
-      if ((costs[i] != RouterSimulator.INFINITY) && (costs[i] != 0)){
+      route[i] = RouterSimulator.INFINITY; //initialize routes from start to be inf. 
+      if ((costs[i] != RouterSimulator.INFINITY) && (costs[i] != 0)){ //If current node is neighbor
         neighbourID.add(i);
         route[i] = i;
       }
-      // Assume no node added.
-      nodeToDistanceTableEncoding[i] = RouterSimulator.INFINITY;
+      nodeToDistanceTableEncoding[i] = RouterSimulator.INFINITY;// Assume no node added.
     }
     route[myID] = myID;
 
@@ -37,11 +36,11 @@ public class RouterNode {
 
     for (int i = 0; i < neighbourID.size(); i++){
       for (int j = 0; j < RouterSimulator.NUM_NODES; j++){
-        distanceTable[i][j] = RouterSimulator.INFINITY;
+        distanceTable[i][j] = RouterSimulator.INFINITY; //initialize dist. table from start to be inf. 
       }
-      nodeToDistanceTableEncoding[neighbourID.get(i)] = i;
+      nodeToDistanceTableEncoding[neighbourID.get(i)] = i; //Add neighbors
     }
-    sendPacketToNeighbours(myID);
+    sendPacketToNeighbours(myID); //Update neighors with news
   }
 
   //--------------------------------------------------
@@ -51,29 +50,29 @@ public class RouterNode {
     boolean hasChanged = false;
 
     for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
-      distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] = pkt.mincost[i];
+      distanceTable[nodeToDistanceTableEncoding[pkt.sourceid]][i] = pkt.mincost[i]; //Add new cost to dist. table
     }
 
     for (int i = 0; i < RouterSimulator.NUM_NODES; i++){
       for (int v = 0; v < neighbourID.size(); v++){
         if (distanceTable[v][i] + costs[neighbourID.get(v)] < tempShortest){
-          tempShortest = distanceTable[v][i] + costs[neighbourID.get(v)];
+          tempShortest = distanceTable[v][i] + costs[neighbourID.get(v)]; //Bellman-ford equation
           tempRoute = neighbourID.get(v);
         }
       }
-      if (tempShortest < costs[i]){
+      if (tempShortest < costs[i]){ //If any neighbor has less costly path
         if (tempShortest != shortestPath[i]){
-          shortestPath[i] = tempShortest;
+          shortestPath[i] = tempShortest; // --> Take it
           route[i] = tempRoute;
           hasChanged = true;
         }
       }
-      else if (shortestPath[i] != costs[i]){
-        shortestPath[i] = costs[i];
+      else if (shortestPath[i] != costs[i]){ //IF non with less cost and changes
+        shortestPath[i] = costs[i]; //Take our direct cost instead
         route[i] = i;
         hasChanged = true;
       }
-      tempShortest = RouterSimulator.INFINITY;
+      tempShortest = RouterSimulator.INFINITY; //reset temp
     }
 
     if (hasChanged){
@@ -84,10 +83,10 @@ public class RouterNode {
   //--------------------------------------------------
   private void sendUpdate(RouterPacket pkt) {
     sim.toLayer2(pkt);
-
   }
 
   //--------------------------------------------------
+  // Prints table and vectors in a nice way! 
   public void printDistanceTable() {
     myGUI.println("Current state for " + myID +
             "  at time " + sim.getClocktime());
@@ -127,20 +126,22 @@ public class RouterNode {
   }
 
   //--------------------------------------------------
+  // Set new and send it
   public void updateLinkCost(int dest, int newcost) {
-    costs[dest] = newcost;
+    costs[dest] = newcost; 
     sendPacketToNeighbours(myID);
   }
 
+  // Send packet to all neighbors and maybe poison reverse
   private void sendPacketToNeighbours(int ID){
     for (int i = 0; i < neighbourID.size(); i++){
       int[] poisonShortestPath = new int[RouterSimulator.NUM_NODES];
       for (int d = 0; d < RouterSimulator.NUM_NODES; d++){
-        if (route[d] == neighbourID.get(i) && usePoisonReverse){
-          poisonShortestPath[d] = RouterSimulator.INFINITY;
+        if (route[d] == neighbourID.get(i) && usePoisonReverse){ //Poison reverse
+          poisonShortestPath[d] = RouterSimulator.INFINITY; //Hinder node from returning to sender with inf. cost
         }
         else{
-          poisonShortestPath[d] = shortestPath[d];
+          poisonShortestPath[d] = shortestPath[d]; // No poison reverse, build as usual
         }
       }
       RouterPacket pkt = new RouterPacket(ID, neighbourID.get(i), poisonShortestPath);
